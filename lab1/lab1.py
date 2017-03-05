@@ -15,20 +15,25 @@ def get_vector(func, size):
 
 def dft(vect):
     N = len(vect)
-    W = cmath.exp(complex(0, ( -2 * math.pi)) / N)
-    out = []
-    for k in range( N ):
-        out.append( sum( [ vect[i] * ( W **( k * i ) ) for i in range(N)] ) / N )
-    return out
+    C = []
+    for k in range(N):
+        C.append(0)
+        for i in range(N):
+            W = cmath.exp( -2j * math.pi * k * i / N)
+            C[k] += vect[i] * W
+        C[k] /= N
+    return C 
 
 
 def rdft(C):
     N = len(C)
-    W = cmath.exp(complex(0, (2 * math.pi)) / N)
-    out = []
+    f = []
     for i in range(N):
-        out.append( sum ( [C[k] * ( W ** ( k * i ) ) for k in range(N) ] ) )
-    return out
+        f.append(0)
+        for k in range(N):
+            W = cmath.exp(2j * math.pi * i * k / N)
+            f[i] += C[k] * W
+    return f
 
 
 def rft(C, x):
@@ -36,7 +41,8 @@ def rft(C, x):
     N = len(C)
     out = []
     for t in x:
-        out.append( sum ( [ C[k] * cmath.exp(1j * k*t) for k in range(N)] ).real*2 )
+        W = cmath.exp(1j * t) 
+        out.append( sum ( [ C[k] * (W ** k) for k in range(N)] ).real*2 )
     return out;
 
 
@@ -45,7 +51,7 @@ def plot(ax, x, y, color):
     ax.plot(x, y, '-', color=color)
 
 
-def fft(a, N):
+def fft(a, N = 32):
     if len(a) == 1:
         return a
     a_even = a[::2]
@@ -68,7 +74,7 @@ def fft(a, N):
 
 def print_discret(vect, ax, color):
     N = len(vect)
-    C = fft(vect, N)
+    C = fft(vect)
 
     x = [ (2 * i * math.pi) / N for i in range(N)]
     y = [i.real/N for i in rdft(C)]
@@ -99,7 +105,7 @@ def main():
     vect = get_vector(func, N)
     
     print_func(ax[0], 'blue')
-    print_discret(vect, ax[1], 'green')
+    print_discret(vect, ax[0], 'green')
     print_tans_func(vect, ax[2], 'red')
 
     plt.savefig('out.png', fmt='png')
