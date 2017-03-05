@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def func(x):
-    return math.cos(2 * x) + math.sin(5 * x)
+    return [math.cos(2 * i) + math.sin(5 * i) for i in x]
 
 
 def get_vector(func, size):
     step = (math.pi * 2) / size
-    return [ func(x * step) for x in range(size) ]
+    return func([x * step for x in range(32)])
 
 
 def dft(vect):
@@ -36,13 +36,12 @@ def rft(C, x):
     N = len(C)
     out = []
     for t in x:
-        out.append( sum ( [ C[k] * cmath.exp(1j * k*t) for k in range(N)] ).real )
+        out.append( sum ( [ C[k] * cmath.exp(1j * k*t) for k in range(N)] ).real*2 )
     return out;
 
 
-def plot(figure, x, y, color):
+def plot(ax, x, y, color):
 
-    ax = figure.add_subplot(1, 1, 1)
     ax.plot(x, y, '-', color=color)
 
 
@@ -67,24 +66,42 @@ def fft(a, N):
     return y
 
 
+def print_discret(vect, ax, color):
+    N = len(vect)
+    C = fft(vect, N)
+
+    x = [ (2 * i * math.pi) / N for i in range(N)]
+    y = [i.real/N for i in rdft(C)]
+
+    ax.plot(x, y, '-', color=color)
+
+
+def print_func(ax, color):
+    x = np.arange(0, 2 * math.pi, 0.01)
+    y = func(x)
+
+    ax.plot(x, y, '-', color=color)
+
+
+def print_tans_func(vect, ax, color):
+    N = len(vect)
+    C = dft(vect)
+    
+    x = np.arange(0, 2 * math.pi, 0.01)
+    y = rft(C, x)
+
+    ax.plot(x, y, '-', color=color)
+
+
 def main():
     N = 32
-    diag = plt.figure()
-
+    fig, ax = plt.subplots(3, 1)
     vect = get_vector(func, N)
-    #C = fft(vect, N)
-    #C = dft(vect)
-    C = np.fft.fft(vect)
     
-    x_org = np.arange(0, 2 * math.pi, 0.01)
-    y_org = [func(i) for i in x_org]
-    x_trans = [ (2 * i * math.pi) / N for i in range(N)]
-    y_trans = [x.real/32 for x in rdft(C)]
-    #y_trans = rft(C, x_org)
-    #pdb.set_trace()
-    plot(diag, x_org, y_org, 'blue')
-    plot(diag, x_trans, y_trans, 'green')
-    #plot(diag, x_org, y_trans, 'green')
+    print_func(ax[0], 'blue')
+    print_discret(vect, ax[1], 'green')
+    print_tans_func(vect, ax[2], 'red')
+
     plt.savefig('out.png', fmt='png')
 
     return 0
