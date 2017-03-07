@@ -25,7 +25,7 @@ def dft(vect):
     return C 
 
 
-def rdft(C):
+def idft(C):
     N = len(C)
     f = []
     for i in range(N):
@@ -36,8 +36,8 @@ def rdft(C):
     return f
 
 
-def rft(C, x):
-    C = C[:27]
+def ift(C, x):
+    C = C[:(len(C)//2)+1]
     N = len(C)
     out = []
     for t in x:
@@ -77,7 +77,7 @@ def print_discret(vect, ax, color):
     C = fft(vect)
 
     x = [ (2 * i * math.pi) / N for i in range(N)]
-    y = [i.real/N for i in rdft(C)]
+    y = [i.real/N for i in idft(C)]
 
     ax.plot(x, y, '-', color=color)
 
@@ -94,19 +94,19 @@ def print_tans_func(vect, ax, color):
     C = dft(vect)
     
     x = np.arange(0, 2 * math.pi, 0.01)
-    y = rft(C, x)
+    y = ift(C, x)
 
     ax.plot(x, y, '-', color=color)
 
 
 def main():
     N = 32
-    fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots(2, 1)
     vect = get_vector(func, N)
     
     print_func(ax[0], 'blue')
     print_discret(vect, ax[0], 'green')
-    print_tans_func(vect, ax[2], 'red')
+    print_tans_func(vect, ax[1], 'red')
 
     plt.savefig('out.png', fmt='png')
 
