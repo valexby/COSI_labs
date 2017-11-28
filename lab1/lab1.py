@@ -67,6 +67,42 @@ def fft(a, direction = 1, N = 32):
     return y
 
 
+def rademaher(k, t):
+    sin_out = math.sin(2 ** k * math.pi * t)
+    if (sin_out > 0): return 1
+    else : return -1
+
+
+def walsh(k, t):
+    bins = [int(i) for i in bin(k)[2:]]
+    N = len(bins)
+    bins = [0] + bins
+    powers = np.zeros(N)
+    for i in range(N):
+        powers[i] = bins[N - i] ^ bins[N - (i + 1)]
+
+    out = 1
+    for i in range(N):
+        out *= rademaher(i+1, t) ** powers[i]
+    return out
+
+
+def fut(a, N = 32):
+    if N == 1:
+        return [a[0] / 8]
+    out = [0 for x in range(N)]
+    for i in range(N // 2):
+        out[i] = a[i] + a[i + N // 2]
+        out[i + N // 2] = a[i] - a[i + N // 2]
+    return fut(out[:N // 2], N // 2) + fut(out[N // 2:], N // 2)
+
+
+def rut(C, t):
+    out = 0
+    for i in range(len(C)):
+        out +=sum([C[i] * walsh(k, t) for k in range(len(C))])
+    return out
+
 def print_discret(vect, ax, color):
     N = len(vect)
     C = fft(vect)
@@ -111,15 +147,17 @@ def print_components(vect, ax):
 
 def main():
     N = 32
-    fig, ax = plt.subplots(5, 1)
+    fig, ax = plt.subplots(2, 1)
     #fig, ax = plt.subplots(4, 1)
     vect = get_vector(func, N)
-    
-    print_func(ax[0], 'blue')
-    print_discret(vect, ax[1], 'green')
-    print_tans_func(vect, ax[2], 'red')
-    print_components(vect, ax[3])
-    ax[4].stem([abs(x) for x in dft(vect)], linefmt='r-', color='m')
+    C = fut(vect)
+    #ax[4].stem([abs(x) for x in dft(vect)], linefmt='r-', color='m')
+    x = np.arange(0, 1, 0.01)
+    y = [rut(C, t) for t in x]
+    pdb.set_trace()
+    ax[0].plot(x, y, '-', color='b')
+    x = np.arange(0, 2*math.pi, 0.01)
+    ax[1].plot(x, func(x), '-', color='g')
 
     plt.savefig('out.png', fmt='png')
 
