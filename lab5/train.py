@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import json
 import numpy as np
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
@@ -17,6 +16,7 @@ def cli():
     pass
 
 def read_image(path):
+    """Загрузка изображения и приведение к бинарному виду"""
     origin = mpimg.imread(path)
     image = np.ndarray(origin.shape[:2])
     for i in range (image.shape[0]):
@@ -28,10 +28,12 @@ def read_image(path):
     return image
 
 def negative(image):
+    """Инвертирование всех битов изображения"""
     for i in np.nditer(image, op_flags=['readwrite']):
         i[...] = int(not i)
 
 def make_noise(origin, noise_level):
+    """Зашумление изображения рандомными шумами"""
     image = origin.copy()
     direction = noise_level < (origin.size / 2)
     if not direction:
@@ -49,58 +51,72 @@ def make_noise(origin, noise_level):
 
     return image
 
-def nonlin(x, deriv=False):  # Note: there is a typo on this line in the video
+def nonlin(x, deriv=False):
+    """Сигмоидная функция. Индус зачем-то сделал тут их две.
+    Они как бы обе нужны, но зачем пихать все в один вызов с ключем"""
     if(deriv==True):
         return (x*(1-x))
 
-    return 1/(1+np.exp(-x))  # Note: there is a typo on this line in the video
+    return 1/(1+np.exp(-x))
 
 def train(origins):
+    """Функция обучния.
+    Названы переменные в соответствии с обозначениями в методе,
+    кроме того, что у меня скрытый слой - H, а у них G"""
     Y = []
     X = []
     for noise in NOISE_LEVELS:
+        """Генерация обучающей выборки. Генерирую SAMPLE_LENGTH зашумленных изображений
+        для каждой картинки для каждого уровня шума, заданного в NOISE_LEVELS"""
         for i in range(len(origins)):
             for _ in range(SAMPLE_LENGTH):
-                X.append(make_noise(origins[i], noise).flatten())
-                Y.append(np.zeros((IMAGES_COUNT,)))
-                Y[-1][i] = 1
+                X.append(make_noise(origins[i], noise).flatten()) #Рандомно зашумил изображение. flatten развернет матрицу в 1-D массив - вектор
+                Y.append(np.zeros((IMAGES_COUNT,)))#Y - это правильные ответы,  по которым будет обучаться сеть. Создал вектор нулей
+                Y[-1][i] = 1 # и одному нейрону с номером текущего изображения присваиваю 1,
 
     np.random.seed()
-    H = int((len(X)/len(X[0])) ** 0.5)
+    H = int((len(X)/len(X[0])) ** 0.5) # Размер скрытого слоя - корень квадратный из отношения размера обучающей выбокри к количеству нейронов во входном слое
     V = 2*np.random.random((len(X[0]), H)) - 1
     W = 2*np.random.random((H, IMAGES_COUNT)) - 1
     Q = 2*np.random.random((H,)) - 1
     T = 2*np.random.random((IMAGES_COUNT,)) - 1
 
     max_error = -1
-    alpha = 0.15
-    while max_error == -1 or max_error > EXPECTED_ERROR:
-        for x, y in zip(X, Y):
+    alpha = 0.15 #Начальная скорость обучения, можно смело править. Но у меня и с этим сходилось всегда
+    while max_error == -1 or max_error > EXPECTED_ERROR: # Продолжаем обучать, пока максимальный размер ошибки не удовлетворит
+        for x, y in zip(X, Y): # Это просто итерирование по двум массивам сразу, входные векторы и выходные
 
-            l0 = x
+            l0 = x # Значения нейронов на первом слое равны входному вектору
+            # dot - это произведение матриц по правилам матана. Если увидишь просто умножение, то это будет просто перемножение членов одной матрицы на члены другой. <Матрица>.T - это транспонирование матрицы
+            l1 = nonlin(np.dot(l0, V) + Q) # На скрытом слое это произведение входного слоя на матрицу весов V + порог Q
+            l2 = nonlin(np.dot(l1, W) + T) # То же самое для второго слоя
 
-            l1 = nonlin(np.dot(l0, V) + Q)
-            l2 = nonlin(np.dot(l1, W) + T)
-
-            l2_error = y - l2
-            if np.abs(l2_error).max() > max_error:
+            l2_error = y - l2 # Ошибка второго слоя как разность ожидаемого выхода второго слоя и полученного
+            if np.abs(l2_error).max() > max_error: # Находим максимальный модуль ошибки за весь цикл обучения
                 max_error = l2_error.max()
-            l2_delta = l2_error*nonlin(l2, deriv=True)*alpha
-            l1_error = (l2_error*nonlin(l2, deriv=True)).dot(W.T)
-            l1_delta = l1_error * nonlin(l1, deriv=True)*alpha
+            l2_delta = l2_error*nonlin(l2, deriv=True)*alpha # Получаем дельту, на которую двигаем веса между скрытым и входным слоем
+            l1_error = (l2_error*nonlin(l2, deriv=True)).dot(W.T) # Находим ошибку второго слоя через посчитанный умными людми градиент
+            l1_delta = l1_error * nonlin(l1, deriv=True)*alpha # И дельта, на которую двигать веса между входным и скрытым слоем
 
+            # Собственно перемещение весов
             W += l1[np.newaxis].T * l2_delta
             T += l2_delta
             V += l0[np.newaxis].T * l1_delta
             Q += l1_delta
+
         print(max_error)
+
         if alpha > max_error and alpha > 0.05:
-            alpha = max_error
+            alpha = max_error # Изменяем скорость обучения по ходу обучения, чтобы сеть сходилась
             print("Max Error: {}".format(max_error))
-    print("Error mean : {}".format(np.abs(l2_error).mean()))
-    return [W, V, T, Q]
+    print("Error mean : {}".format(np.abs(l2_error).mean())) # Вывожу среднюю ошибку
+    return [W, V, T, Q] # Возвращаю параметры нейронки
 
 def clust(origins, network, noise):
+    """Процесс кластеризации. Тут в основном рисование таблицы.
+    Принцип такой, на нейронку, обученную ранее, подаются идеальные изображения. Значения на выходе нейронки считаются так же, как и при обучении. На каком нейроне больше выход получился, к такому по счету кластеру изображение и отнесем.
+    Таким образом каждое идеальное изображение получает по кластеру так сказать.
+    Затем я генерирую ещё пять зашумленных изображений, для каждого идеального по одной. И подаю их на входы нейронки. По выходам уже смотрю, какое изображение в какой кластер попало, нахожу вероятности. В шестой лабе нормализовать и находит вероятности ни к чему по сути, но только для дебага может, чтобы прикинуть как оно вообще различает ли разные буквы, или рандом полный. По идее должно хватить просто выбирания нейрона с самым большим выходом """
     samples = [make_noise(origin, noise) for origin in origins]
 
     W, V, T, Q = network
