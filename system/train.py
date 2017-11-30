@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import click, os, theano, sys
 import numpy as np
+import matplotlib
+matplotlib.rcParams['backend'] = "Qt4Agg"
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -69,12 +71,6 @@ def nonlin(x, deriv=False):
 def train(X, Y):
 
     environment.reproducible()
-    x_train, x_test, y_train, y_test = train_test_split(
-        X.astype(np.float32),
-        Y.astype(np.float32),
-        train_size=(6. / 7)
-    )
-    theano.config.floatX = 'float32'
     img_size = X.shape[1]
     network = algorithms.Momentum(
         [
@@ -90,28 +86,36 @@ def train(X, Y):
         nesterov=True,
     )
     network.architecture()
-    network.train(x_train, y_train, x_test, y_test, epochs=20)
-    y_predicted = network.predict(x_test).argmax(axis=1)
-    y_test = np.asarray(y_test.argmax(axis=1)).reshape(len(y_test))
-    print(metrics.classification_report(y_test, y_predicted))
+    network.train(X, Y, epochs=20)
     return network
 
-def get_number(im_number, symbol_dict, network, origins):
-    grid = gridspec.GridSpec(im_number.shape[0], 2, top=1., bottom=0., right=1., left=0., hspace=0.,
+def get_number(origins, symbol_dict, network):
+    grid = gridspec.GridSpec(4, len(origins), top=1., bottom=0., right=1., left=0., hspace=0.,
                            wspace=0.)
-    grid = [plt.subplot(cell) for cell in grid]
-    for ax in grid:
-        ax.set_xticks([])
-        ax.set_yticks([])
+    grid = np.array([plt.subplot(cell) for cell in grid]).reshape((4, len(origins)))
+    for row in grid:
+        for ax in row:
+            ax.set_xticks([])
+            ax.set_yticks([])
+    images = np.array([origin.flatten() for origin in origins])
+    images = images / 255
+    images = images - images.mean(axis=0)
     positions = []
-    for i in range(im_number.shape[0]):
-        out = network.predict(im_number[i])
+    commullative = 1
+    for i in range(images.shape[0]):
+        out = network.predict(images[i])[0]
+        out = np.around((out / out.sum()) * 100)
+        commullative *= (out.max()) / 100
         positions.append(out.argmax())
-        grid[i*2].imshow(origins[i])
-        grid[(i*2)+1].text(0.5, 0.5, symbol_dict[positions[-1]])
-    plt.savefig('output.png')
-    out = [symbol_dict[pos] for pos in positions]
-    return "".join(out)
+        grid[0][i].imshow(origins[i])
+        for j in range(1, 4):
+            pos = out.argmax()
+            grid[j][i].text(0.2, 0.5, "{} - {}%".format(symbol_dict[pos], str(out[pos])))
+            out[pos] = 0
+    plt.savefig('output.png', fmt='png')
+    plt.show()
+    print(commullative)
+    return "".join([symbol_dict[pos] for pos in positions])
 
 def main():
     image_names = os.listdir(IMAGES_PATH)
@@ -141,11 +145,7 @@ def main():
     origins = []
     for symbol_path in number_path:
         origins.append(mpimg.imread(sys.argv[1] + symbol_path))
-    inputs = np.array([origin.flatten() for origin in origins])
-    origins = np.array(origins)
-    inputs = inputs / 255
-    inputs = inputs - inputs.mean(axis=0)
-    print(get_number(inputs, symbol_dict, network, origins))
+    print(get_number(origins, symbol_dict, network))
 
 
 if __name__ == "__main__":
